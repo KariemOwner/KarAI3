@@ -53,7 +53,14 @@ export async function POST(request: NextRequest) {
           });
 
           if (!response.ok) {
-            throw new Error("Failed to analyze image with Groq");
+            const errorData = await response.json().catch(() => ({}));
+            const errorDetail = {
+              status: response.status,
+              statusText: response.statusText,
+              body: errorData,
+            };
+            console.error("Groq API error:", JSON.stringify(errorDetail, null, 2));
+            throw new Error(JSON.stringify({ type: "GROQ_ERROR", ...errorDetail }));
           }
 
           const data = await response.json();
@@ -101,7 +108,14 @@ export async function POST(request: NextRequest) {
     );
 
     if (!geminiResponse.ok) {
-      throw new Error("Failed to generate image with Gemini");
+      const errorData = await geminiResponse.json().catch(() => ({}));
+      const errorDetail = {
+        status: geminiResponse.status,
+        statusText: geminiResponse.statusText,
+        body: errorData,
+      };
+      console.error("Gemini API error:", JSON.stringify(errorDetail, null, 2));
+      throw new Error(JSON.stringify({ type: "GEMINI_ERROR", ...errorDetail }));
     }
 
     const geminiData = await geminiResponse.json();
@@ -122,9 +136,20 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Failed to generate image";
     console.error("Image generation error:", error);
+    
+    // Extract debug info if available
+    let debugMessage: string | undefined;
+    if (error instanceof Error && error.stack) {
+      debugMessage = error.stack;
+    }
+    
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to generate image" },
+      { 
+        error: errorMessage,
+        ...(debugMessage && { debugMessage })
+      },
       { status: 500 }
     );
   }
